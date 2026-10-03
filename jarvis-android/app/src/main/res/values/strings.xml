@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Jarvis</string>
+    <string name="hint_message">Bir şey yazın veya mikrofona dokunun…</string>
+    <string name="send">Gönder</string>
+    <string name="settings">Ayarlar</string>
+    <string name="new_chat">Yeni sohbet</string>
+    <string name="mic">Konuş</string>
+    <string name="api_key_title">Claude API anahtarı</string>
+    <string name="api_key_message">console.anthropic.com adresinden aldığınız API anahtarını girin. Anahtar yalnızca bu telefonda saklanır.</string>
+    <string name="save">Kaydet</string>
+    <string name="cancel">İptal</string>
+    <string name="confirm">Onayla</string>
+    <string name="status_idle">Hazır</string>
+    <string name="status_listening">Dinliyorum…</string>
+    <string name="status_thinking">Düşünüyorum…</string>
+    <string name="speak_replies">Cevapları sesli oku</string>
+</resources>
