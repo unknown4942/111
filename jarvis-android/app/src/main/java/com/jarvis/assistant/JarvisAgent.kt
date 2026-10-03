@@ -25,10 +25,14 @@ import java.util.Locale
  * Akış: kullanıcı mesajı → Claude → (gerekirse araç çağrıları → sonuçlar → Claude) → cevap.
  * Konuşma geçmişi yalnızca sona eklenerek tutulur; [reset] ile temizlenir.
  */
-class JarvisAgent(apiKey: String, private val tools: PhoneTools) {
+class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: PhoneTools) {
 
     private val client: AnthropicClient = AnthropicOkHttpClient.builder()
         .apiKey(apiKey)
+        .apply {
+            // Bir çalışma alanına bağlı olmayan anahtarlar bu başlığı zorunlu tutar.
+            if (!workspaceId.isNullOrBlank()) putHeader("anthropic-workspace-id", workspaceId)
+        }
         .build()
 
     private val history = mutableListOf<MessageParam>()

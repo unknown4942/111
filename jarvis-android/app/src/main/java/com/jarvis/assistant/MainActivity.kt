@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: RateLimitException) {
                 "Şu anda çok fazla istek var, biraz sonra tekrar deneyin."
             } catch (e: AnthropicServiceException) {
-                "Claude servisinden hata döndü (${e.statusCode()}). Lütfen tekrar deneyin."
+                "Claude servisinden hata döndü (${e.statusCode()}): ${e.message}"
             } catch (e: AnthropicIoException) {
                 "İnternet bağlantısında sorun var, tekrar deneyin."
             } catch (e: Exception) {
@@ -256,6 +256,11 @@ class MainActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setText(prefs.getString(KEY_API, ""))
         }
+        val workspaceInput = EditText(this).apply {
+            hint = getString(R.string.workspace_hint)
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(prefs.getString(KEY_WORKSPACE, ""))
+        }
         val speakToggle = android.widget.CheckBox(this).apply {
             text = getString(R.string.speak_replies)
             isChecked = prefs.getBoolean(KEY_SPEAK, true)
@@ -265,6 +270,7 @@ class MainActivity : AppCompatActivity() {
             val pad = (20 * density).toInt()
             setPadding(pad, pad / 2, pad, 0)
             addView(input)
+            addView(workspaceInput)
             addView(speakToggle)
         }
         AlertDialog.Builder(this)
@@ -274,6 +280,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.save) { _, _ ->
                 prefs.edit()
                     .putString(KEY_API, input.text.toString().trim())
+                    .putString(KEY_WORKSPACE, workspaceInput.text.toString().trim())
                     .putBoolean(KEY_SPEAK, speakToggle.isChecked)
                     .apply()
                 createAgent()
@@ -285,7 +292,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun createAgent() {
         val key = prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
-        agent = key?.let { JarvisAgent(it, phoneTools) }
+        val workspaceId = prefs.getString(KEY_WORKSPACE, null)
+        agent = key?.let { JarvisAgent(it, workspaceId, phoneTools) }
     }
 
     private fun requestStartupPermissions() {
@@ -301,5 +309,6 @@ class MainActivity : AppCompatActivity() {
     private companion object {
         const val KEY_API = "api_key"
         const val KEY_SPEAK = "speak_replies"
+        const val KEY_WORKSPACE = "workspace_id"
     }
 }
