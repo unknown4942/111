@@ -5,8 +5,13 @@
     <string name="settings">Ayarlar</string>
     <string name="new_chat">Yeni sohbet</string>
     <string name="mic">Konuş</string>
-    <string name="api_key_title">Claude API anahtarı</string>
-    <string name="api_key_message">console.anthropic.com adresinden aldığınız API anahtarını girin. Anahtar yalnızca bu telefonda saklanır.</string>
+    <string name="settings_title">Yapay zekâ ayarları</string>
+    <string name="provider_gemini">Gemini (ücretsiz)</string>
+    <string name="provider_claude">Claude</string>
+    <string name="gemini_key_hint">Gemini API anahtarı (AIza…)</string>
+    <string name="claude_key_hint">Claude API anahtarı (sk-ant-…)</string>
+    <string name="gemini_key_help">Ücretsiz anahtarı aistudio.google.com/apikey adresinden alın. Ücretsiz kullanımda Google, konuşmaları ürünlerini geliştirmek için kullanabilir. Anahtar yalnızca bu telefonda saklanır.</string>
+    <string name="claude_key_help">Anahtarı console.anthropic.com adresinden alın (kredi gerekir). Anahtar yalnızca bu telefonda saklanır.</string>
     <string name="workspace_hint">Workspace ID (isteğe bağlı, wrkspc_…)</string>
     <string name="save">Kaydet</string>
     <string name="cancel">İptal</string>

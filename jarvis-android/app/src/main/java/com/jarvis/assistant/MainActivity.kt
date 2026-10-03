@@ -7,11 +7,15 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,7 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var voiceInput: VoiceInput
     private lateinit var voiceOutput: VoiceOutput
     private lateinit var phoneTools: PhoneTools
-    private var agent: JarvisAgent? = null
+    private var agent: Assistant? = null
 
     private var busy = false
     private var listening = false
@@ -100,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         requestStartupPermissions()
         createAgent()
         if (agent == null) {
-            addBubble("Merhaba! Başlamak için Ayarlar'dan Claude API anahtarınızı girin.", fromUser = false)
+            addBubble("Merhaba! Başlamak için Ayarlar'dan bir yapay zekâ seçip API anahtarınızı girin.", fromUser = false)
             showApiKeyDialog()
         } else {
             addBubble("Merhaba, ben Jarvis. Size nasıl yardımcı olabilirim?", fromUser = false)
@@ -171,6 +175,10 @@ class MainActivity : AppCompatActivity() {
             } catch (e: AnthropicServiceException) {
                 "Claude servisinden hata döndü (${e.statusCode()}): ${e.message}"
             } catch (e: AnthropicIoException) {
+                "İnternet bağlantısında sorun var, tekrar deneyin."
+            } catch (e: AssistantException) {
+                e.message ?: "Yapay zekâ servisinden hata döndü."
+            } catch (e: java.io.IOException) {
                 "İnternet bağlantısında sorun var, tekrar deneyin."
             } catch (e: Exception) {
                 "Beklenmeyen bir hata oluştu: ${e.message}"
@@ -251,8 +259,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun showApiKeyDialog() {
         val density = resources.displayMetrics.density
-        val input = EditText(this).apply {
-            hint = "sk-ant-..."
+        val providerGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.HORIZONTAL
+            addView(RadioButton(context).apply { id = R.id.provider_gemini; text = getString(R.string.provider_gemini) })
+            addView(RadioButton(context).apply { id = R.id.provider_claude; text = getString(R.string.provider_claude) })
+            check(if (prefs.getString(KEY_PROVIDER, PROVIDER_GEMINI) == PROVIDER_CLAUDE) R.id.provider_claude else R.id.provider_gemini)
+        }
+        val geminiInput = EditText(this).apply {
+            hint = getString(R.string.gemini_key_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(prefs.getString(KEY_GEMINI, ""))
+        }
+        val claudeInput = EditText(this).apply {
+            hint = getString(R.string.claude_key_hint)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setText(prefs.getString(KEY_API, ""))
         }
@@ -261,7 +280,21 @@ class MainActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_TEXT
             setText(prefs.getString(KEY_WORKSPACE, ""))
         }
-        val speakToggle = android.widget.CheckBox(this).apply {
+        val helpText = TextView(this).apply {
+            setTextColor(getColor(R.color.text_secondary))
+            textSize = 13f
+        }
+        fun updateFields() {
+            val gemini = providerGroup.checkedRadioButtonId == R.id.provider_gemini
+            geminiInput.visibility = if (gemini) View.VISIBLE else View.GONE
+            claudeInput.visibility = if (gemini) View.GONE else View.VISIBLE
+            workspaceInput.visibility = if (gemini) View.GONE else View.VISIBLE
+            helpText.setText(if (gemini) R.string.gemini_key_help else R.string.claude_key_help)
+        }
+        providerGroup.setOnCheckedChangeListener { _, _ -> updateFields() }
+        updateFields()
+
+        val speakToggle = CheckBox(this).apply {
             text = getString(R.string.speak_replies)
             isChecked = prefs.getBoolean(KEY_SPEAK, true)
         }
@@ -269,17 +302,22 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             val pad = (20 * density).toInt()
             setPadding(pad, pad / 2, pad, 0)
-            addView(input)
+            addView(providerGroup)
+            addView(helpText)
+            addView(geminiInput)
+            addView(claudeInput)
             addView(workspaceInput)
             addView(speakToggle)
         }
         AlertDialog.Builder(this)
-            .setTitle(R.string.api_key_title)
-            .setMessage(R.string.api_key_message)
+            .setTitle(R.string.settings_title)
             .setView(container)
             .setPositiveButton(R.string.save) { _, _ ->
+                val provider = if (providerGroup.checkedRadioButtonId == R.id.provider_claude) PROVIDER_CLAUDE else PROVIDER_GEMINI
                 prefs.edit()
-                    .putString(KEY_API, input.text.toString().trim())
+                    .putString(KEY_PROVIDER, provider)
+                    .putString(KEY_GEMINI, geminiInput.text.toString().trim())
+                    .putString(KEY_API, claudeInput.text.toString().trim())
                     .putString(KEY_WORKSPACE, workspaceInput.text.toString().trim())
                     .putBoolean(KEY_SPEAK, speakToggle.isChecked)
                     .apply()
@@ -291,9 +329,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createAgent() {
-        val key = prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
-        val workspaceId = prefs.getString(KEY_WORKSPACE, null)
-        agent = key?.let { JarvisAgent(it, workspaceId, phoneTools) }
+        agent = if (prefs.getString(KEY_PROVIDER, PROVIDER_GEMINI) == PROVIDER_CLAUDE) {
+            prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
+                ?.let { ClaudeAgent(it, prefs.getString(KEY_WORKSPACE, null), phoneTools) }
+        } else {
+            prefs.getString(KEY_GEMINI, null)?.takeIf { it.isNotBlank() }
+                ?.let { GeminiAgent(it, phoneTools) }
+        }
     }
 
     private fun requestStartupPermissions() {
@@ -310,5 +352,9 @@ class MainActivity : AppCompatActivity() {
         const val KEY_API = "api_key"
         const val KEY_SPEAK = "speak_replies"
         const val KEY_WORKSPACE = "workspace_id"
+        const val KEY_GEMINI = "gemini_api_key"
+        const val KEY_PROVIDER = "provider"
+        const val PROVIDER_GEMINI = "gemini"
+        const val PROVIDER_CLAUDE = "claude"
     }
 }

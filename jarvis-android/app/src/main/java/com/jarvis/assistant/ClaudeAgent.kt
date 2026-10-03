@@ -15,9 +15,6 @@ import com.anthropic.models.messages.WebSearchTool20260209
 import com.fasterxml.jackson.core.type.TypeReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Claude ile konuşan ve telefon araçlarını çağıran ajan döngüsü.
@@ -25,7 +22,7 @@ import java.util.Locale
  * Akış: kullanıcı mesajı → Claude → (gerekirse araç çağrıları → sonuçlar → Claude) → cevap.
  * Konuşma geçmişi yalnızca sona eklenerek tutulur; [reset] ile temizlenir.
  */
-class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: PhoneTools) {
+class ClaudeAgent(apiKey: String, workspaceId: String?, private val tools: PhoneTools) : Assistant {
 
     private val client: AnthropicClient = AnthropicOkHttpClient.builder()
         .apiKey(apiKey)
@@ -36,14 +33,11 @@ class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: Phone
         .build()
 
     private val history = mutableListOf<MessageParam>()
+    private val claudeTools = tools.specs.map { it.toClaudeTool() }
 
-    fun reset() = history.clear()
+    override fun reset() = history.clear()
 
-    /**
-     * Kullanıcının mesajını işler ve Jarvis'in son cevabını döndürür.
-     * [onToolCall] her araç çağrısında arayüzü bilgilendirmek için çağrılır.
-     */
-    suspend fun ask(userText: String, onToolCall: (String) -> Unit = {}): String {
+    override suspend fun ask(userText: String, onToolCall: (String) -> Unit): String {
         val checkpoint = history.size
         history += MessageParam.builder()
             .role(MessageParam.Role.USER)
@@ -78,7 +72,7 @@ class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: Phone
         val builder = MessageCreateParams.builder()
             .model(MODEL)
             .maxTokens(4096L)
-            .system(systemPrompt())
+            .system(jarvisSystemPrompt())
             // Sesli asistan için hızlı cevap önemli; derin düşünme gerektirmeyen işler.
             .outputConfig(OutputConfig.builder().effort(OutputConfig.Effort.LOW).build())
             .messages(history)
@@ -86,7 +80,7 @@ class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: Phone
             // Güvenlik filtresi bir isteği reddederse sunucu uygun bir modele otomatik geçer.
             .putAdditionalHeader("anthropic-beta", "server-side-fallback-2026-07-01")
             .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
-        tools.definitions.forEach { builder.addTool(it) }
+        claudeTools.forEach { builder.addTool(it) }
         return builder.build()
     }
 
@@ -99,13 +93,7 @@ class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: Phone
             } catch (e: Exception) {
                 emptyMap()
             }
-            val (text, isError) = try {
-                withContext(Dispatchers.Main) { tools.execute(call.name(), input) } to false
-            } catch (e: PhoneTools.ToolError) {
-                (e.message ?: "Hata") to true
-            } catch (e: Exception) {
-                "Araç çalışırken hata oluştu: ${e.message}" to true
-            }
+            val (text, isError) = tools.run(call.name(), input)
             ContentBlockParam.ofToolResult(
                 ToolResultBlockParam.builder()
                     .toolUseId(call.id())
@@ -123,25 +111,6 @@ class JarvisAgent(apiKey: String, workspaceId: String?, private val tools: Phone
 
     private fun textOf(message: Message): String =
         message.content().mapNotNull { it.text().orElse(null)?.text() }.joinToString("\n").trim()
-
-    private fun systemPrompt(): String {
-        // Tarih gün bazında tutulur ki istek öneki gün içinde değişmesin.
-        val today = SimpleDateFormat("d MMMM yyyy EEEE", Locale("tr", "TR")).format(Date())
-        return """
-            Sen Jarvis'sin: kullanıcının Android telefonunda çalışan, Türkçe konuşan kişisel bir asistansın.
-            Bugün: $today.
-
-            Cevapların çoğunlukla sesli okunur. Bu yüzden kısa, doğal ve konuşma diliyle cevap ver;
-            markdown, madde işareti, emoji veya tablo kullanma.
-
-            Telefonda iş yapmak için sana verilen araçları kullan. Bir kişiyi aramak veya ona mesaj atmak
-            istendiğinde önce find_contact ile numarayı bul; birden fazla eşleşme varsa hangisi olduğunu sor.
-            Arama ve SMS işlemlerinde kullanıcıya ekranda ayrıca onay sorulur, sen tekrar sorma.
-            Güncel bilgi (hava durumu, haberler, sonuçlar) gerekirse web aramasını kullan.
-            Bir araç hata verirse kullanıcıya kısaca nedenini ve ne yapabileceğini söyle.
-            Yapamadığın bir şey istenirse bunu dürüstçe söyle.
-        """.trimIndent()
-    }
 
     private companion object {
         const val MODEL = "claude-opus-5-5"

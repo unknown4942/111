@@ -21,6 +21,10 @@ import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import com.anthropic.core.JsonValue
 import com.anthropic.models.messages.Tool
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,7 +32,7 @@ import java.util.Locale
 /**
  * Telefonda Jarvis'in kullanabileceği araçlar.
  *
- * Her araç Claude'a bir [Tool] tanımı olarak gönderilir; Claude bir aracı çağırdığında
+ * Her araç yapay zekâya bir [ToolSpec] tanımı olarak gönderilir; model bir aracı çağırdığında
  * [execute] ilgili Android işlemini yapar ve sonucu metin olarak döndürür.
  *
  * Arama ve SMS gibi geri alınamaz işlemler [confirm] ile kullanıcıya onaylatılır.
@@ -39,7 +43,7 @@ class PhoneTools(
 ) {
     private val tr = Locale("tr", "TR")
 
-    val definitions: List<Tool> = listOf(
+    val specs: List<ToolSpec> = listOf(
         tool(
             "find_contact",
             "Rehberde isimle kişi arar ve eşleşen kişilerin adlarını ve telefon numaralarını döndürür. " +
@@ -357,6 +361,18 @@ class PhoneTools(
     private fun Map<String, Any?>.int(key: String): Int =
         (this[key] as? Number)?.toInt() ?: throw ToolError("'$key' alanı eksik veya sayı değil")
 
+    /**
+     * Aracı ana iş parçacığında çalıştırır; hatayı da modele geri gönderilecek metne çevirir.
+     * Dönüş: (sonuç metni, hata mı)
+     */
+    suspend fun run(name: String, input: Map<String, Any?>): Pair<String, Boolean> = try {
+        withContext(Dispatchers.Main) { execute(name, input) } to false
+    } catch (e: ToolError) {
+        (e.message ?: "Hata") to true
+    } catch (e: Exception) {
+        "Araç çalışırken hata oluştu: ${e.message}" to true
+    }
+
     class ToolError(message: String) : Exception(message)
 
     private companion object {
@@ -371,19 +387,41 @@ class PhoneTools(
             description: String,
             properties: Map<String, Map<String, Any>>,
             required: List<String>,
-        ): Tool {
-            val props = Tool.InputSchema.Properties.builder()
-            properties.forEach { (key, schema) -> props.putAdditionalProperty(key, JsonValue.from(schema)) }
-            return Tool.builder()
-                .name(name)
-                .description(description)
-                .inputSchema(
-                    Tool.InputSchema.builder()
-                        .properties(props.build())
-                        .required(required)
-                        .build(),
-                )
-                .build()
-        }
+        ) = ToolSpec(name, description, properties, required)
     }
+}
+
+/** Yapay zekâ sağlayıcısından bağımsız araç tanımı (JSON Schema ile). */
+data class ToolSpec(
+    val name: String,
+    val description: String,
+    val properties: Map<String, Map<String, Any>>,
+    val required: List<String>,
+) {
+    fun toClaudeTool(): Tool {
+        val props = Tool.InputSchema.Properties.builder()
+        properties.forEach { (key, schema) -> props.putAdditionalProperty(key, JsonValue.from(schema)) }
+        return Tool.builder()
+            .name(name)
+            .description(description)
+            .inputSchema(
+                Tool.InputSchema.builder()
+                    .properties(props.build())
+                    .required(required)
+                    .build(),
+            )
+            .build()
+    }
+
+    fun toGeminiJson(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("name", name)
+        .put("description", description)
+        .put(
+            "parameters",
+            JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject(properties))
+                .put("required", JSONArray(required)),
+        )
 }

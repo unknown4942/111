@@ -1,6 +1,7 @@
-# Jarvis — Android sesli asistan (sürüm 0.1)
+# Jarvis — Android sesli asistan (sürüm 0.2)
 
-Telefonunuzu Türkçe sesli komutla veya yazarak kontrol eden, Claude ile çalışan kişisel asistan.
+Telefonunuzu Türkçe sesli komutla veya yazarak kontrol eden kişisel asistan.
+Yapay zekâ olarak **Gemini (ücretsiz)** veya **Claude** seçilebilir.
 
 ## Neler yapabiliyor?
 
@@ -24,7 +25,10 @@ Ana ekran tuşuna uzun basınca açılmasını isterseniz: *Ayarlar → Uygulama
 ## Kurulum
 
 ### 1. API anahtarı alın
-[console.anthropic.com](https://console.anthropic.com) adresinden hesap açıp bir API anahtarı oluşturun (`sk-ant-...`). Kullanım ücretlidir; hesabınıza kredi yüklemeniz gerekir.
+İkisinden birini seçin:
+
+- **Gemini (ücretsiz):** [aistudio.google.com/apikey](https://aistudio.google.com/apikey) adresinden Google hesabınızla ücretsiz anahtar alın (`AIza...`). Ücretsiz kullanımın günlük sınırları vardır ve Google ücretsiz katmandaki konuşmaları ürünlerini geliştirmek için kullanabilir.
+- **Claude:** [console.anthropic.com](https://console.anthropic.com/settings/keys) adresinden anahtar oluşturun (`sk-ant-api03-...`). Kullanım ücretlidir; hesaba kredi yüklemek gerekir.
 
 ### 2. Uygulamayı derleyin
 Gereken: [Android Studio](https://developer.android.com/studio) (içinde JDK ve Android SDK gelir).
@@ -43,7 +47,7 @@ cd jarvis-android
 
 ### 3. İlk açılış
 - İstenen izinleri verin (mikrofon, rehber, arama, SMS).
-- **Ayarlar** düğmesinden API anahtarınızı girin.
+- **Ayarlar** düğmesinden yapay zekâyı (Gemini/Claude) seçip API anahtarınızı girin.
 - Mikrofona dokunup konuşun.
 
 ## Yapı
@@ -51,12 +55,14 @@ cd jarvis-android
 ```
 app/src/main/java/com/jarvis/assistant/
 ├── MainActivity.kt   Ekran: sohbet, mikrofon, ayarlar, onay pencereleri
-├── JarvisAgent.kt    Claude ile konuşma döngüsü (araç çağrıları dahil)
+├── Assistant.kt      Ortak arayüz ve sistem talimatı
+├── GeminiAgent.kt    Gemini ile konuşma döngüsü (araç çağrıları dahil)
+├── ClaudeAgent.kt    Claude ile konuşma döngüsü (araç çağrıları dahil)
 ├── PhoneTools.kt     Telefon araçları: arama, SMS, uygulama, alarm, fener…
 └── Voice.kt          Türkçe ses tanıma ve sesli okuma
 ```
 
-Yeni bir yetenek eklemek için `PhoneTools.kt` içinde `definitions` listesine bir araç tanımı ekleyin ve `execute` içinde karşılığını yazın.
+Yeni bir yetenek eklemek için `PhoneTools.kt` içinde `specs` listesine bir araç tanımı ekleyin ve `execute` içinde karşılığını yazın.
 
 ## Güvenlik notları
 
